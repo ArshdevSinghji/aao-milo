@@ -17,6 +17,7 @@ import {
 import { auth } from "../config/firebase";
 import { Toaster, toast } from "sonner";
 import GoogleIcon from "@mui/icons-material/Google";
+import { useNavigate } from "react-router-dom";
 
 interface IFormState {
   email: string;
@@ -25,6 +26,7 @@ interface IFormState {
 
 const Login = () => {
   const provider = new GoogleAuthProvider();
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
     try {
@@ -47,6 +49,11 @@ const Login = () => {
       await createUserWithEmailAndPassword(auth, data.email, data.password);
       toast.success("User logged in succesfully!");
       reset();
+      await new Promise(() =>
+        setTimeout(() => {
+          navigate("/home");
+        }, 2000)
+      );
     } catch (err) {
       toast.error("Error logging in...");
     }
