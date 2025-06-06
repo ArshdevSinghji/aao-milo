@@ -71,6 +71,7 @@ const Login = () => {
               </Typography>
 
               <TextField
+                size="small"
                 {...register("email", {
                   required: "Email is required",
                   pattern: {
@@ -86,6 +87,7 @@ const Login = () => {
               />
 
               <TextField
+                size="small"
                 {...register("password", { required: "Password is required" })}
                 label="password"
                 variant="outlined"
