@@ -12,12 +12,16 @@ import { useForm } from "react-hook-form";
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
-import { auth } from "../config/firebase";
+import { auth, db } from "../config/firebase";
+import { collection, addDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { Toaster, toast } from "sonner";
 import GoogleIcon from "@mui/icons-material/Google";
 import { useNavigate } from "react-router-dom";
+import { useAppDispatch } from "../redux/hook";
+import { setUser } from "../redux/userSlice";
 
 interface IFormState {
   email: string;
@@ -27,11 +31,45 @@ interface IFormState {
 const Login = () => {
   const provider = new GoogleAuthProvider();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   const handleLogin = async () => {
     try {
-      await signInWithPopup(auth, provider);
+      const response = await signInWithPopup(auth, provider);
       toast.success("User logged in succesfully!");
+
+      const userRef = doc(db, "users", response.user.uid);
+      const onlineRef = doc(db, "isOnline", response.user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          uid: response.user.uid,
+          email: response.user.email,
+          displayName: response.user.displayName,
+          photoURL: response.user.photoURL,
+        });
+      }
+      // setting up online status
+      await setDoc(onlineRef, {
+        isOnline: true,
+        isTyping: false,
+      });
+
+      dispatch(
+        setUser({
+          email: response.user.email,
+          photoURL: response.user.photoURL,
+          displayName: response.user.displayName,
+          uid: response.user.uid,
+        })
+      );
+
+      await new Promise(() =>
+        setTimeout(() => {
+          navigate("/home");
+        }, 2000)
+      );
     } catch (err) {
       toast.error("Error logging in...");
     }
@@ -41,19 +79,27 @@ const Login = () => {
     register,
     formState: { errors, isSubmitting },
     handleSubmit,
-    reset,
   } = useForm<IFormState>();
 
   const onSubmit = async (data: IFormState) => {
     try {
-      await createUserWithEmailAndPassword(auth, data.email, data.password);
-      toast.success("User logged in succesfully!");
-      reset();
-      await new Promise(() =>
-        setTimeout(() => {
-          navigate("/home");
-        }, 2000)
+      const res = await createUserWithEmailAndPassword(
+        auth,
+        data.email,
+        data.password
       );
+      await addDoc(collection(db, "users"), {
+        uid: auth.currentUser?.uid,
+        email: data.email,
+        displayName: auth.currentUser?.displayName || "Anonymous",
+        photoURL: auth.currentUser?.photoURL || "",
+      });
+
+      await setDoc(doc(db, "userChats", res.user.uid), {
+        chat: [],
+      });
+
+      toast.success("User created successfully!");
     } catch (err) {
       toast.error("Error logging in...");
     }
@@ -71,6 +117,7 @@ const Login = () => {
         }}
       >
         <Paper variant="outlined" sx={{ p: 3 }}>
+          {/* input form */}
           <Box component={"form"} onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2} alignItems={"center"}>
               <Typography component={"h1"} variant="subtitle1" m={1}>
@@ -115,7 +162,10 @@ const Login = () => {
               </Button>
             </Stack>
           </Box>
+
           <Divider sx={{ m: 2 }}>or</Divider>
+
+          {/* Sign in with google */}
           <Box>
             <Button
               startIcon={<GoogleIcon />}
