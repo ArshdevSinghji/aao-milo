@@ -46,7 +46,7 @@ const Contacts = () => {
     const userQuery = lastVisible
       ? query(
           collection(db, "users"),
-          orderBy("displayName"),
+          orderBy("email"),
           startAfter(lastVisible),
           limit(6)
         )

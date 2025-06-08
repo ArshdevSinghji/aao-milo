@@ -105,21 +105,6 @@ const Chat = () => {
       console.error("Current user ID is not set.");
       return;
     }
-    const sender = await getDoc(doc(db, "users", current));
-
-    if (!user.userID) {
-      confirm("User ID is not set.");
-      return;
-    }
-    const receiver = await getDoc(doc(db, "users", user.userID));
-
-    const senderData = sender.data();
-    const receiverData = receiver.data();
-
-    if (!senderData || !receiverData) {
-      console.error("Sender or receiver data not found.");
-      return;
-    }
 
     const chatDoc = await getDoc(chatRef);
     if (!chatDoc.exists()) {
