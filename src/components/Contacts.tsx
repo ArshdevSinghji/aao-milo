@@ -48,9 +48,9 @@ const Contacts = () => {
           collection(db, "users"),
           orderBy("displayName"),
           startAfter(lastVisible),
-          limit(10)
+          limit(6)
         )
-      : query(collection(db, "users"), orderBy("email"), limit(10));
+      : query(collection(db, "users"), orderBy("email"), limit(6));
 
     const snapshot = await getDocs(userQuery);
     const users: IUser[] = [];

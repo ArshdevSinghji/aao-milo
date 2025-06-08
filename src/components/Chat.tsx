@@ -157,6 +157,14 @@ const Chat = () => {
     }
   }, [message]);
 
+  if (!user?.userID || !current) {
+    return (
+      <Box flex={4} display={"flex"} flexDirection={"column"} padding={2}>
+        <Typography variant="h6">Select a user to chat with</Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box flex={4} display={"flex"} flexDirection={"column"}>
       {/* top */}

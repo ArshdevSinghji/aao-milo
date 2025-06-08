@@ -12,7 +12,6 @@ import { useForm } from "react-hook-form";
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
 import { auth, db } from "../config/firebase";
@@ -83,20 +82,13 @@ const Login = () => {
 
   const onSubmit = async (data: IFormState) => {
     try {
-      const res = await createUserWithEmailAndPassword(
-        auth,
-        data.email,
-        data.password
-      );
+      await createUserWithEmailAndPassword(auth, data.email, data.password);
+
       await addDoc(collection(db, "users"), {
         uid: auth.currentUser?.uid,
         email: data.email,
-        displayName: auth.currentUser?.displayName || "Anonymous",
+        displayName: auth.currentUser?.displayName || data.email.split("@")[0],
         photoURL: auth.currentUser?.photoURL || "",
-      });
-
-      await setDoc(doc(db, "userChats", res.user.uid), {
-        chat: [],
       });
 
       toast.success("User created successfully!");

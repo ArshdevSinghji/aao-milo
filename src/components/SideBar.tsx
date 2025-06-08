@@ -11,9 +11,11 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import { useAppSelector } from "../redux/hook";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
+import { useNavigate } from "react-router-dom";
 
 const SideBar = () => {
   const currentUser = useAppSelector((state) => state.user.uid);
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
@@ -26,6 +28,7 @@ const SideBar = () => {
         isOnline: false,
         isTyping: false,
       });
+      navigate("/");
     } catch (error) {
       console.error("Error updating online status:", error);
     }
