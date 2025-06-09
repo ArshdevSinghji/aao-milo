@@ -3,13 +3,12 @@ import {
   collection,
   collectionGroup,
   doc,
-  getDocs,
   onSnapshot,
   query,
   setDoc,
   where,
 } from "firebase/firestore";
-import { use, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db } from "../config/firebase";
 import SearchIcon from "@mui/icons-material/Search";
 import { useAppDispatch, useAppSelector } from "../redux/hook";
@@ -165,7 +164,6 @@ const Contacts = () => {
   };
 
   const handelClick = (clickedUser: IUser) => {
-    console.log("User clicked:", clickedUser); // Set the selected user
     dispatch(
       setUserId({
         uid: clickedUser.uid,
@@ -197,7 +195,6 @@ const Contacts = () => {
   const [recieverId, setReceiverId] = useState<string>("");
   useEffect(() => {
     if (!chatID) {
-      console.error("Chat ID is not set.");
       return;
     }
     const chatRef = doc(db, "chats", chatID);
