@@ -24,10 +24,14 @@ const SideBar = () => {
         return;
       }
       const onlineRef = doc(db, "isOnline", currentUser);
-      await setDoc(onlineRef, {
-        isOnline: false,
-        isTyping: false,
-      });
+      await setDoc(
+        onlineRef,
+        {
+          isOnline: false,
+          isTyping: false,
+        },
+        { merge: true }
+      );
       navigate("/");
     } catch (error) {
       console.error("Error updating online status:", error);

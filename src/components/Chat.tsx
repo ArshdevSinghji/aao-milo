@@ -94,10 +94,14 @@ const Chat = () => {
 
     if (!user.userID) return;
     const onlineRef = doc(db, "isOnline", user.userID);
-    setDoc(onlineRef, {
-      isOnline: true,
-      isTyping: false,
-    });
+    setDoc(
+      onlineRef,
+      {
+        isOnline: true,
+        isTyping: false,
+      },
+      { merge: true }
+    );
 
     const chatRef = doc(db, "chats", chatId);
 
@@ -142,6 +146,12 @@ const Chat = () => {
     }
   }, [message]);
 
+  useEffect(() => {
+    return () => {
+      if (typingTimeout.current) clearTimeout(typingTimeout.current);
+    };
+  }, [chatId]);
+
   if (!user?.userID || !current) {
     return (
       <Box flex={4} display={"flex"} flexDirection={"column"} padding={2}>
@@ -170,7 +180,7 @@ const Chat = () => {
         <Avatar src={user.photoURL} />
         <Box>
           <Typography variant="body1">{user.displayName}</Typography>
-          {isOnline ? (
+          {isOnline?.isOnline ? (
             <Typography variant="caption" color="green">
               {isOnline?.isTyping ? "Typing..." : "Online"}
             </Typography>
@@ -260,10 +270,14 @@ const Chat = () => {
                 setText(e.target.value);
                 if (!current) return;
                 const onlineRef = doc(db, "isOnline", current);
-                setDoc(onlineRef, {
-                  isOnline: true,
-                  isTyping: true,
-                });
+                setDoc(
+                  onlineRef,
+                  {
+                    isOnline: true,
+                    isTyping: true,
+                  },
+                  { merge: true }
+                );
                 if (typingTimeout.current) clearTimeout(typingTimeout.current);
                 typingTimeout.current = setTimeout(() => {
                   setDoc(onlineRef, {
