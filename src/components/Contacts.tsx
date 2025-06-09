@@ -218,6 +218,22 @@ const Contacts = () => {
     setDoc(receiverRef, { lastMessage }, { merge: true });
   }, [senderId, recieverId, lastMessage]);
 
+  //searching users
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSearch = (value: string) => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => {
+      setUser(
+        allUsers.filter(
+          (item) =>
+            item.displayName?.toLowerCase().includes(value) ||
+            item.email?.toLowerCase().includes(value)
+        )
+      );
+    }, 400); // 400ms debounce
+  };
+
   return (
     <Box
       flex={1}
@@ -240,13 +256,7 @@ const Contacts = () => {
           <StyledInputBase
             onChange={(e) => {
               const value = e.target.value.toLowerCase();
-              setUser(
-                allUsers.filter(
-                  (item) =>
-                    item.displayName?.toLowerCase().includes(value) ||
-                    item.email?.toLowerCase().includes(value)
-                )
-              );
+              handleSearch(value);
             }}
             placeholder="Search"
             inputProps={{ "aria-label": "search" }}
