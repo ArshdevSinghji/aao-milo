@@ -8,14 +8,17 @@ import LibraryMusicOutlinedIcon from "@mui/icons-material/LibraryMusicOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import { useAppSelector } from "../redux/hook";
+import { useAppDispatch, useAppSelector } from "../redux/hook";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useNavigate } from "react-router-dom";
+import { setAuth } from "../redux/authSlice";
 
 const SideBar = () => {
   const currentUser = useAppSelector((state) => state.user.uid);
   const navigate = useNavigate();
+
+  const dispatch = useAppDispatch();
 
   const handleLogout = async () => {
     try {
@@ -32,6 +35,7 @@ const SideBar = () => {
         },
         { merge: true }
       );
+      dispatch(setAuth({ isAuth: false }));
       navigate("/");
     } catch (error) {
       console.error("Error updating online status:", error);
