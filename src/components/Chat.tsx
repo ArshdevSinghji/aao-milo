@@ -8,12 +8,18 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
+  QueryDocumentSnapshot,
   serverTimestamp,
   setDoc,
+  startAfter,
   updateDoc,
   where,
+  type DocumentData,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { getTimeCategory } from "../utils/getTimeCategory";
@@ -36,6 +42,7 @@ const Chat = () => {
   const user = useAppSelector((state) => state.chat); //user selected for chat
   const current = useAppSelector((state) => state.user.uid); //current user ID
   const chatId = useAppSelector((state) => state.chat.chatId); //chatID
+
   const chatEnd = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -44,14 +51,17 @@ const Chat = () => {
   const [isOnline, setIsOnline] = useState<IOnline>();
   const [open, setOpen] = useState<boolean>(false);
 
-  //fetching chat messages
+  const [hasMore, setHasMore] = useState(true);
+  const [lastDoc, setLastDoc] =
+    useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const PAGE_SIZE = 6;
+
+  // Initial fetch
   useEffect(() => {
-    if (!chatId) {
-      console.error("Chat ID is not set.");
-      return;
-    }
+    if (!chatId) return;
     const messageRef = collection(db, "chats", chatId, "messages");
-    const unsub = onSnapshot(messageRef, (snapshot) => {
+    const q = query(messageRef, orderBy("timestamp", "desc"), limit(PAGE_SIZE));
+    const unsub = onSnapshot(q, (snapshot) => {
       const messages: Message[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data() as Message;
@@ -66,17 +76,55 @@ const Chat = () => {
               : data.timestamp,
         });
       });
-      messages.sort((a, b) => {
-        if (!a.timestamp && !b.timestamp) return 0;
-        if (!a.timestamp) return -1;
-        if (!b.timestamp) return 1;
-        return a.timestamp.getTime() - b.timestamp.getTime();
-      });
-      setMessages(messages);
+      setMessages(messages.reverse()); // reverse to show oldest at top
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+      setHasMore(snapshot.size === PAGE_SIZE);
     });
-
     return () => unsub();
   }, [chatId]);
+
+  // Load more messages
+  const loadMore = async () => {
+    if (!chatId || !lastDoc || !hasMore) return;
+    const messageRef = collection(db, "chats", chatId, "messages");
+    const q = query(
+      messageRef,
+      orderBy("timestamp", "desc"),
+      startAfter(lastDoc),
+      limit(PAGE_SIZE)
+    );
+    const snapshot = await getDocs(q);
+    const newMessages: Message[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data() as Message;
+      newMessages.push({
+        id: doc.id,
+        text: data.text,
+        senderId: data.senderId,
+        timestamp:
+          data.timestamp && typeof (data.timestamp as any).toDate === "function"
+            ? (data.timestamp as any).toDate()
+            : data.timestamp,
+      });
+    });
+    setMessages((prev) => [...newMessages.reverse(), ...prev]);
+    setLastDoc(snapshot.docs[snapshot.docs.length - 1] || lastDoc);
+    setHasMore(snapshot.size === PAGE_SIZE);
+  };
+
+  // Scroll handler
+  const chatBoxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const chatBox = chatBoxRef.current;
+    if (!chatBox) return;
+    const handleScroll = () => {
+      if (chatBox.scrollTop === 0 && hasMore) {
+        loadMore();
+      }
+    };
+    chatBox.addEventListener("scroll", handleScroll);
+    return () => chatBox.removeEventListener("scroll", handleScroll);
+  }, [hasMore, lastDoc]);
 
   useEffect(() => {
     if (!chatId) return;
@@ -233,7 +281,7 @@ const Chat = () => {
         </Box>
       </Stack>
       {/* center */}
-      <Box flex={1} overflow={"auto"}>
+      <Box flex={1} overflow={"auto"} ref={chatBoxRef}>
         <Stack spacing={2} padding={2}>
           {Object.entries(groupedMessages).map(([category, msgs]) => (
             <Box key={category}>

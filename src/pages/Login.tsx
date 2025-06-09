@@ -21,6 +21,7 @@ import GoogleIcon from "@mui/icons-material/Google";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch } from "../redux/hook";
 import { setUser } from "../redux/userSlice";
+import { setAuth } from "../redux/authSlice";
 
 interface IFormState {
   email: string;
@@ -54,6 +55,8 @@ const Login = () => {
         isOnline: true,
         isTyping: false,
       });
+
+      dispatch(setAuth({ isAuth: true }));
 
       dispatch(
         setUser({
