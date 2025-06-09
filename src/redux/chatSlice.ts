@@ -6,11 +6,16 @@ interface ChatState {
   photoURL?: string;
   displayName?: string;
   email?: string;
+  lastMessage?: string;
 }
 
 const initialState: ChatState = {
   chatId: undefined,
   userID: undefined,
+  lastMessage: undefined,
+  photoURL: undefined,
+  displayName: undefined,
+  email: undefined,
 };
 
 export const chatSlice = createSlice({

@@ -1,5 +1,6 @@
 import { Avatar, Box, Stack, Typography } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
+import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
 import { useEffect, useRef, useState } from "react";
 import { useAppSelector } from "../redux/hook";
 import {
@@ -8,16 +9,21 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
+import { getTimeCategory } from "../utils/getTimeCategory";
+import EmojiPicker from "emoji-picker-react";
 
 interface Message {
   id: string;
   text: string;
   senderId: string;
+  receiverId?: string;
   timestamp: Date;
 }
 
@@ -30,13 +36,13 @@ const Chat = () => {
   const user = useAppSelector((state) => state.chat); //user selected for chat
   const current = useAppSelector((state) => state.user.uid); //current user ID
   const chatId = useAppSelector((state) => state.chat.chatId); //chatID
-
   const chatEnd = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const [message, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState<string>("");
   const [isOnline, setIsOnline] = useState<IOnline>();
+  const [open, setOpen] = useState<boolean>(false);
 
   //fetching chat messages
   useEffect(() => {
@@ -44,7 +50,6 @@ const Chat = () => {
       console.error("Chat ID is not set.");
       return;
     }
-
     const messageRef = collection(db, "chats", chatId, "messages");
     const unsub = onSnapshot(messageRef, (snapshot) => {
       const messages: Message[] = [];
@@ -61,11 +66,33 @@ const Chat = () => {
               : data.timestamp,
         });
       });
-      messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      messages.sort((a, b) => {
+        if (!a.timestamp && !b.timestamp) return 0;
+        if (!a.timestamp) return -1;
+        if (!b.timestamp) return 1;
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
       setMessages(messages);
     });
 
     return () => unsub();
+  }, [chatId]);
+
+  useEffect(() => {
+    if (!chatId) return;
+    const messageRef = collection(db, "chats", chatId, "messages");
+    const unreadQuery = query(messageRef, where("isRead", "==", false));
+    const unsub = onSnapshot(unreadQuery, (snapshot) => {
+      snapshot.forEach(async (doc) => {
+        const data = doc.data() as Message;
+        if (data.receiverId === current) {
+          await updateDoc(doc.ref, { isRead: true });
+        }
+      });
+    });
+    return () => {
+      unsub();
+    };
   }, [chatId]);
 
   // Fetch online status
@@ -128,7 +155,9 @@ const Chat = () => {
     await addDoc(messageRef, {
       text: text,
       senderId: current,
+      receiverId: user.userID,
       timestamp: serverTimestamp(),
+      isRead: false,
     });
 
     setText("");
@@ -159,6 +188,18 @@ const Chat = () => {
       </Box>
     );
   }
+
+  const groupedMessages: { [category: string]: Message[] } = {};
+  message.forEach((msg) => {
+    const date = msg.timestamp ? new Date(msg.timestamp) : null;
+    const category = date ? getTimeCategory(date) : "Unknown";
+    if (!groupedMessages[category]) groupedMessages[category] = [];
+    groupedMessages[category].push(msg);
+  });
+
+  const handleEmoji = (emoji: { emoji: string }) => {
+    setText((prev) => prev + emoji.emoji);
+  };
 
   return (
     <Box flex={4} display={"flex"} flexDirection={"column"}>
@@ -194,61 +235,73 @@ const Chat = () => {
       {/* center */}
       <Box flex={1} overflow={"auto"}>
         <Stack spacing={2} padding={2}>
-          {message.map((msg) => {
-            const isCurrentUser = msg.senderId === current;
-            return (
-              <Box
-                key={msg.id}
-                sx={{
-                  display: "flex",
-                  flexDirection: isCurrentUser ? "row-reverse" : "row",
-                  alignItems: "flex-end",
-                }}
+          {Object.entries(groupedMessages).map(([category, msgs]) => (
+            <Box key={category}>
+              <Typography
+                variant="caption"
+                color="primary"
+                sx={{ textAlign: "center", display: "block", mb: 1, mt: 2 }}
               >
-                {!isCurrentUser && (
-                  <Avatar
-                    src={user.photoURL}
+                {category}
+              </Typography>
+              {msgs.map((msg) => {
+                const isCurrentUser = msg.senderId === current;
+                return (
+                  <Box
+                    key={msg.id}
                     sx={{
-                      width: 32,
-                      height: 32,
-                      marginRight: 1,
-                      marginLeft: 0.5,
+                      display: "flex",
+                      flexDirection: isCurrentUser ? "row-reverse" : "row",
+                      alignItems: "flex-end",
                     }}
-                  />
-                )}
-                <Box
-                  sx={{
-                    backgroundColor: isCurrentUser ? "#e0f7fa" : "#f5f5f5",
-                    color: "#222",
-                    padding: "10px 16px",
-                    borderRadius: "16px",
-                    borderTopLeftRadius: isCurrentUser ? "16px" : "4px",
-                    borderTopRightRadius: isCurrentUser ? "4px" : "16px",
-                    maxWidth: "70%",
-                    boxShadow: 1,
-                    marginLeft: isCurrentUser ? "auto" : 0,
-                    marginRight: isCurrentUser ? 0 : "auto",
-                  }}
-                >
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ wordBreak: "break-word" }}
                   >
-                    {msg.text}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="textSecondary"
-                    sx={{ display: "block", textAlign: "right", mt: 0.5 }}
-                  >
-                    {msg.timestamp && msg.timestamp instanceof Date
-                      ? msg.timestamp.toLocaleTimeString()
-                      : ""}
-                  </Typography>
-                </Box>
-              </Box>
-            );
-          })}
+                    {!isCurrentUser && (
+                      <Avatar
+                        src={user.photoURL}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          marginRight: 1,
+                          marginLeft: 0.5,
+                        }}
+                      />
+                    )}
+                    <Box
+                      sx={{
+                        backgroundColor: isCurrentUser ? "#e0f7fa" : "#f5f5f5",
+                        color: "#222",
+                        padding: "10px 16px",
+                        borderRadius: "16px",
+                        borderTopLeftRadius: isCurrentUser ? "16px" : "4px",
+                        borderTopRightRadius: isCurrentUser ? "4px" : "16px",
+                        maxWidth: "70%",
+                        boxShadow: 1,
+                        mt: 1,
+                        marginLeft: isCurrentUser ? "auto" : 0,
+                        marginRight: isCurrentUser ? 0 : "auto",
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ wordBreak: "break-word" }}
+                      >
+                        {msg.text}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        sx={{ display: "block", textAlign: "right", mt: 0.5 }}
+                      >
+                        {msg.timestamp && msg.timestamp instanceof Date
+                          ? msg.timestamp.toLocaleTimeString()
+                          : ""}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          ))}
         </Stack>
         <Box ref={chatEnd} />
       </Box>
@@ -262,7 +315,7 @@ const Chat = () => {
           borderTop={"1px solid #ccc"}
         >
           <AttachFileIcon />
-          <Box flexGrow={1}>
+          <Box flexGrow={1} position={"relative"}>
             <input
               type="text"
               placeholder="Type a message"
@@ -295,6 +348,13 @@ const Chat = () => {
               }}
             />
           </Box>
+          <Box position={"absolute"} bottom={"8%"} right={"1%"}>
+            <EmojiPicker open={open} onEmojiClick={handleEmoji} />
+          </Box>
+          <EmojiEmotionsIcon
+            onClick={() => setOpen((prev) => !prev)}
+            sx={{ cursor: "pointer" }}
+          />
           <Typography onClick={handleSend} sx={{ cursor: "pointer" }}>
             Send Message
           </Typography>

@@ -1,13 +1,5 @@
 import { Avatar, Box, Typography } from "@mui/material";
-import {
-  collection,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  QueryDocumentSnapshot,
-  startAfter,
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { useEffect, useRef, useState } from "react";
 import { db } from "../config/firebase";
 import SearchIcon from "@mui/icons-material/Search";
@@ -24,53 +16,74 @@ interface IUser {
   email?: string;
   photoURL?: string;
   displayName?: string;
+  lastMessage?: string;
 }
 
 const Contacts = () => {
-  const currentUser = useAppSelector((state) => state.user);
-  console.log("Current User:", currentUser);
-
-  const selectedUser = useAppSelector((state) => state.chat);
+  const currentUser = useAppSelector((state) => state.user); //loggedin user
+  const selectedUser = useAppSelector((state) => state.chat); //selected user for chat
+  const chatID = useAppSelector((state) => state.chat.chatId); //chat ID for the selected user
 
   const dispatch = useAppDispatch();
 
   const [user, setUser] = useState<IUser[]>([]);
   const [allUsers, setAllUsers] = useState<IUser[]>([]);
-  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(
-    null
-  );
+  const [lastVisible, setLastVisible] = useState<any>(null); //for infinite scroll
 
   //infinte scroll
-  const fetchData = async () => {
-    console.log("fetchData called...");
-    const userQuery = lastVisible
-      ? query(
-          collection(db, "users"),
-          orderBy("email"),
-          startAfter(lastVisible),
-          limit(6)
-        )
-      : query(collection(db, "users"), orderBy("email"), limit(6));
+  // const fetchData = async () => {
+  //   console.log("fetchData called...");
+  //   const userQuery = lastVisible
+  //     ? query(
+  //         collection(db, "users"),
+  //         orderBy("email"),
+  //         startAfter(lastVisible),
+  //         limit(6)
+  //       )
+  //     : query(collection(db, "users"), orderBy("email"), limit(6));
+  //   return onSnapshot(userQuery, (snapshot) => {
+  //     const users: IUser[] = [];
+  //     snapshot.forEach((doc) => {
+  //       const data = doc.data() as IUser;
+  //       if (data.uid !== currentUser.uid) {
+  //         users.push(data);
+  //       }
+  //     });
 
-    const snapshot = await getDocs(userQuery);
-    const users: IUser[] = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data() as IUser;
-      if (data.uid !== currentUser.uid) {
-        users.push(data);
-      }
-    });
+  //     setAllUsers((prevUsers) => [...prevUsers, ...users]);
+  //     setUser((prevUsers) => [...prevUsers, ...users]);
 
-    setAllUsers((prevUsers) => [...prevUsers, ...users]);
-    setUser((prevUsers) => [...prevUsers, ...users]);
+  //     setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null);
 
-    setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null);
+  //     console.log("finished");
+  //   });
+  // };
+  // useEffect(() => {
+  //   let unsubscribe: (() => void) | undefined;
+  //   fetchData().then((unsub) => {
+  //     unsubscribe = unsub;
+  //   });
+  //   return () => {
+  //     if (unsubscribe) unsubscribe();
+  //   };
+  // }, []);
 
-    console.log("finished");
-  };
+  //without infinite scroll
   useEffect(() => {
-    fetchData();
+    const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
+      const users: IUser[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data() as IUser;
+        if (data.uid !== currentUser.uid) {
+          users.push(data);
+        }
+      });
+      setAllUsers(users);
+      setUser(users);
+    });
+    return () => unsub();
   }, []);
+
   const containerRef = useRef<HTMLDivElement>(null); //when bottom of the scroll container is reached, fetch more data
   const handleScroll = () => {
     const container = containerRef.current;
@@ -81,7 +94,7 @@ const Contacts = () => {
     ) {
       console.log("Reached bottom of the scroll container");
       if (!lastVisible) return;
-      fetchData();
+      // fetchData();
     }
   };
 
@@ -111,6 +124,33 @@ const Contacts = () => {
       );
     }
   }, [selectedUser, currentUser?.uid, dispatch]);
+
+  //fetching last message
+  const [lastMessage, setLastMessage] = useState<string>("");
+  const [senderId, setSenderId] = useState<string>("");
+  const [recieverId, setReceiverId] = useState<string>("");
+  useEffect(() => {
+    if (!chatID) {
+      console.error("Chat ID is not set.");
+      return;
+    }
+    const chatRef = doc(db, "chats", chatID);
+    const unsub = onSnapshot(chatRef, (doc) => {
+      setLastMessage(doc.data()?.lastMessage || "");
+      setSenderId(doc.data()?.users[0] || "");
+      setReceiverId(doc.data()?.users[1] || "");
+    });
+    return () => unsub();
+  }, [chatID]);
+
+  useEffect(() => {
+    if (!senderId || !recieverId || !lastMessage) return;
+    const senderRef = doc(db, "users", senderId);
+    const receiverRef = doc(db, "users", recieverId);
+
+    setDoc(senderRef, { lastMessage }, { merge: true });
+    setDoc(receiverRef, { lastMessage }, { merge: true });
+  }, [senderId, recieverId, lastMessage]);
 
   return (
     <Box
@@ -182,11 +222,14 @@ const Contacts = () => {
                 alt={item.displayName || "User Avatar"}
                 sx={{ marginRight: "10px" }}
               />
-              <Typography variant="body1">
-                {item.displayName !== "Anonymous" || undefined
-                  ? item.displayName
-                  : item.email?.split("@")[0]}
-              </Typography>
+              <Box>
+                <Typography variant="body1">
+                  {item.displayName !== "Anonymous" || undefined
+                    ? item.displayName
+                    : item.email?.split("@")[0]}
+                </Typography>
+                <Typography variant="caption">{item?.lastMessage}</Typography>
+              </Box>
             </Box>
           );
         })}
